@@ -1,0 +1,7 @@
+.git
+.github
+.venv
+.env
+superset_home
+**/__pycache__
+*.log

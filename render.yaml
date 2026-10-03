@@ -1,0 +1,31 @@
+# Render blueprint for DataForge's Superset. Values marked `sync: false` are asked for when the blueprint
+# is first applied; see the README for what each one must match in the DataForge API's settings.
+services:
+  - type: web
+    name: dataforge-superset
+    runtime: docker
+    region: frankfurt # next to the database
+    plan: 1c-2g # Superset needs about 2 GB with two workers
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: SUPERSET_METADATA_URL
+        sync: false
+      - key: SUPERSET_SECRET_KEY
+        generateValue: true
+      - key: SUPERSET_GUEST_TOKEN_SECRET
+        generateValue: true
+      - key: SUPERSET_ADMIN_USER
+        value: dataforge-service
+      - key: SUPERSET_ADMIN_PASSWORD
+        sync: false
+      - key: SSO_SHARED_SECRET
+        sync: false
+      - key: DATAFORGE_JWT_ISSUER
+        value: dataforge
+      - key: DATAFORGE_FRONTEND_ORIGINS
+        sync: false
+      - key: SUPERSET_FORCE_HTTPS
+        value: "true"
+      - key: GUNICORN_WORKERS
+        value: "2"
