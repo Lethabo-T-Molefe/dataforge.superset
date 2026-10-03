@@ -5,6 +5,10 @@
 
 Steps: migrate Superset's metadata database, create the default roles and permissions, create the service
 account DataForge's backend uses for its REST calls, and create the DataForge Viewer and Guest roles.
+
+The container runs this on every start, including each time a sleeping service wakes. Syncing permissions
+takes minutes, so once the database is set up and no migration ran, everything after the migration is
+skipped. Set SUPERSET_BOOTSTRAP=full to run every step regardless.
 """
 
 import os
@@ -63,9 +67,46 @@ def ensure_roles() -> None:
         print("roles ready", flush=True)
 
 
+def state() -> tuple[str | None, bool]:
+    """(migration version of the metadata database, whether the service account and DataForge roles exist)."""
+    from sqlalchemy import create_engine, text
+
+    url = os.environ.get(
+        "SUPERSET_METADATA_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/superset"
+    )
+    engine = create_engine(url)
+    try:
+        with engine.connect() as conn:
+            if conn.execute(text("SELECT to_regclass('alembic_version')")).scalar() is None:
+                return None, False
+            version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+            if conn.execute(text("SELECT to_regclass('ab_user')")).scalar() is None:
+                return version, False
+            account = conn.execute(
+                text("SELECT 1 FROM ab_user WHERE username = :name"),
+                {"name": os.environ["SUPERSET_ADMIN_USER"]},
+            ).first()
+            roles = conn.execute(
+                text("SELECT COUNT(*) FROM ab_role WHERE name IN ('DataForge Viewer', 'DataForge Guest')")
+            ).scalar()
+            return version, account is not None and roles == 2
+    except Exception as error:  # noqa: BLE001 - when in doubt, run every step
+        print(f"could not read the database's state ({type(error).__name__}); running every step", flush=True)
+        return None, False
+    finally:
+        engine.dispose()
+
+
 def main() -> None:
     load_env()
+    before, _ = state()
     superset("db", "upgrade")
+    after, ready = state()
+    if ready and before == after and os.environ.get("SUPERSET_BOOTSTRAP") != "full":
+        print(
+            "already set up and no migration ran: skipping permissions, service account and roles", flush=True
+        )
+        return
     superset("init")
     user = os.environ["SUPERSET_ADMIN_USER"]
     superset(

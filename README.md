@@ -71,8 +71,10 @@ at `/health`. In Render choose **New > Blueprint**, pick this repo, and fill in 
 (`SUPERSET_METADATA_URL`, `SUPERSET_ADMIN_PASSWORD`, `SSO_SHARED_SECRET`, `DATAFORGE_FRONTEND_ORIGINS`).
 The two Superset secrets are generated for you.
 
-The container runs `bootstrap.py` and then gunicorn, so the first start takes a minute or two while
-Superset's database is created. Deploys wait for this repo's GitHub checks to pass.
+The container runs `bootstrap.py` and then gunicorn. The first start takes several minutes while Superset's
+database is created and its permissions are synced. Later starts, including each time a sleeping service
+wakes, skip that work unless a migration ran (set `SUPERSET_BOOTSTRAP=full` to force it). Deploys wait for
+this repo's GitHub checks to pass. On an instance with 512 MB of memory, set `GUNICORN_WORKERS=1`.
 
 Give the service a subdomain of the same domain as the web app (for example `superset.yourdomain.com`), so
 sign-in and embedded dashboards work without third-party cookies.
